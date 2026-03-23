@@ -623,6 +623,93 @@ describe('getUsage', () => {
     assert.equal(fetchCalls, 2);
   });
 
+  test('falls back to cached planName when subscriptionType becomes null after token refresh', async () => {
+    await writeCredentials(tempHome, buildCredentials({ subscriptionType: 'claude_max_2024' }));
+    let fetchCalls = 0;
+    const fetchApi = async () => {
+      fetchCalls += 1;
+      return buildApiResult();
+    };
+
+    const initial = await getUsage({
+      homeDir: () => tempHome,
+      fetchApi,
+      now: () => 1000,
+      readKeychain: () => null,
+    });
+    assert.equal(initial?.planName, 'Max');
+    assert.equal(fetchCalls, 1);
+
+    await writeCredentials(tempHome, buildCredentials({ subscriptionType: null }));
+
+    const afterRefresh = await getUsage({
+      homeDir: () => tempHome,
+      fetchApi,
+      now: () => 2000,
+      readKeychain: () => null,
+    });
+
+    assert.equal(afterRefresh?.planName, 'Max');
+    assert.equal(fetchCalls, 1);
+  });
+
+  test('falls back to cached planName when subscriptionType is null and cache is stale', async () => {
+    await writeCredentials(tempHome, buildCredentials({ subscriptionType: 'claude_pro_2024' }));
+    let fetchCalls = 0;
+    const fetchApi = async () => {
+      fetchCalls += 1;
+      return buildApiResult();
+    };
+
+    await getUsage({
+      homeDir: () => tempHome,
+      fetchApi,
+      now: () => 1000,
+      readKeychain: () => null,
+    });
+    assert.equal(fetchCalls, 1);
+
+    await writeCredentials(tempHome, buildCredentials({ subscriptionType: null }));
+
+    const afterRefresh = await getUsage({
+      homeDir: () => tempHome,
+      fetchApi,
+      now: () => 400_000,
+      readKeychain: () => null,
+    });
+
+    assert.equal(afterRefresh?.planName, 'Pro');
+    assert.equal(fetchCalls, 2);
+  });
+
+  test('does not use cached OAuth planName for explicit API subscription', async () => {
+    await writeCredentials(tempHome, buildCredentials({ subscriptionType: 'claude_pro_2024' }));
+
+    const initial = await getUsage({
+      homeDir: () => tempHome,
+      fetchApi: async () => buildApiResult(),
+      now: () => 1000,
+      readKeychain: () => null,
+    });
+    assert.equal(initial?.planName, 'Pro');
+
+    await writeCredentials(tempHome, buildCredentials({ subscriptionType: 'api' }));
+
+    let fetchCalls = 0;
+    const apiUserUsage = await getUsage({
+      homeDir: () => tempHome,
+      fetchApi: async () => {
+        fetchCalls += 1;
+        return buildApiResult();
+      },
+      now: () => 400_000,
+      readKeychain: () => null,
+    });
+
+    assert.equal(apiUserUsage, null);
+    assert.equal(fetchCalls, 0);
+  });
+
   test('reads credentials from CLAUDE_CONFIG_DIR and prefers them over default path', async () => {
     const originalConfigDir = process.env.CLAUDE_CONFIG_DIR;
     const customConfigDir = path.join(tempHome, '.claude-2');

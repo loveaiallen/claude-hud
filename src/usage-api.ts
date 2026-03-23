@@ -401,10 +401,20 @@ export async function getUsage(overrides: Partial<UsageApiDeps> = {}): Promise<U
     const { accessToken, subscriptionType } = credentials;
 
     // Determine plan name from subscriptionType
-    const planName = getPlanName(subscriptionType);
+    let planName = getPlanName(subscriptionType);
     if (!planName) {
-      // API user, no usage limits to show
-      return null;
+      // Only fall back to cache when subscriptionType is genuinely missing or
+      // empty after an OAuth refresh. Explicit values like "api" should remain
+      // API users with no usage display.
+      if (!subscriptionType.trim()) {
+        const cached = readCacheState(homeDir, now, deps.ttls);
+        if (cached?.data?.planName) {
+          planName = cached.data.planName;
+        }
+      }
+      if (!planName) {
+        return null;
+      }
     }
 
     // Fetch usage from API
