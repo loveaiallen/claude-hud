@@ -39,7 +39,6 @@ function serializeTranscriptData(data) {
         todos: data.todos.map((todo) => ({ ...todo })),
         sessionStart: data.sessionStart?.toISOString(),
         sessionName: data.sessionName,
-        sessionTokens: data.sessionTokens,
     };
 }
 function deserializeTranscriptData(data) {
@@ -57,7 +56,6 @@ function deserializeTranscriptData(data) {
         todos: data.todos.map((todo) => ({ ...todo })),
         sessionStart: data.sessionStart ? new Date(data.sessionStart) : undefined,
         sessionName: data.sessionName,
-        sessionTokens: data.sessionTokens,
     };
 }
 function readTranscriptCache(transcriptPath, state) {
@@ -114,12 +112,6 @@ export async function parseTranscript(transcriptPath) {
     const taskIdToIndex = new Map();
     let latestSlug;
     let customTitle;
-    const sessionTokens = {
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheCreationTokens: 0,
-        cacheReadTokens: 0,
-    };
     let parsedCleanly = false;
     try {
         const fileStream = createReadStreamImpl(transcriptPath);
@@ -138,14 +130,6 @@ export async function parseTranscript(transcriptPath) {
                 else if (typeof entry.slug === 'string') {
                     latestSlug = entry.slug;
                 }
-                // Accumulate token usage from assistant messages
-                if (entry.type === 'assistant' && entry.message?.usage) {
-                    const usage = entry.message.usage;
-                    sessionTokens.inputTokens += usage.input_tokens ?? 0;
-                    sessionTokens.outputTokens += usage.output_tokens ?? 0;
-                    sessionTokens.cacheCreationTokens += usage.cache_creation_input_tokens ?? 0;
-                    sessionTokens.cacheReadTokens += usage.cache_read_input_tokens ?? 0;
-                }
                 processEntry(entry, toolMap, agentMap, taskIdToIndex, latestTodos, result);
             }
             catch {
@@ -161,7 +145,6 @@ export async function parseTranscript(transcriptPath) {
     result.agents = Array.from(agentMap.values()).slice(-10);
     result.todos = latestTodos;
     result.sessionName = customTitle ?? latestSlug;
-    result.sessionTokens = sessionTokens;
     if (parsedCleanly) {
         writeTranscriptCache(transcriptPath, transcriptState, result);
     }
@@ -187,7 +170,7 @@ function processEntry(entry, toolMap, agentMap, taskIdToIndex, latestTodos, resu
                 status: 'running',
                 startTime: timestamp,
             };
-            if (block.name === 'Task') {
+            if (block.name === 'Task' || block.name === 'Agent') {
                 const input = block.input;
                 const agentEntry = {
                     id: block.id,
@@ -202,9 +185,29 @@ function processEntry(entry, toolMap, agentMap, taskIdToIndex, latestTodos, resu
             else if (block.name === 'TodoWrite') {
                 const input = block.input;
                 if (input?.todos && Array.isArray(input.todos)) {
+                    // Build reverse map: content → taskIds from existing state
+                    const contentToTaskIds = new Map();
+                    for (const [taskId, idx] of taskIdToIndex) {
+                        if (idx < latestTodos.length) {
+                            const content = latestTodos[idx].content;
+                            const ids = contentToTaskIds.get(content) ?? [];
+                            ids.push(taskId);
+                            contentToTaskIds.set(content, ids);
+                        }
+                    }
                     latestTodos.length = 0;
                     taskIdToIndex.clear();
                     latestTodos.push(...input.todos);
+                    // Re-register taskId mappings for items whose content matches
+                    for (let i = 0; i < latestTodos.length; i++) {
+                        const ids = contentToTaskIds.get(latestTodos[i].content);
+                        if (ids) {
+                            for (const taskId of ids) {
+                                taskIdToIndex.set(taskId, i);
+                            }
+                            contentToTaskIds.delete(latestTodos[i].content);
+                        }
+                    }
                 }
             }
             else if (block.name === 'TaskCreate') {

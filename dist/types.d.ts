@@ -64,19 +64,12 @@ export interface MemoryInfo {
 }
 /** Check if usage limit is reached (either window at 100%) */
 export declare function isLimitReached(data: UsageData): boolean;
-export interface SessionTokenUsage {
-    inputTokens: number;
-    outputTokens: number;
-    cacheCreationTokens: number;
-    cacheReadTokens: number;
-}
 export interface TranscriptData {
     tools: ToolEntry[];
     agents: AgentEntry[];
     todos: TodoItem[];
     sessionStart?: Date;
     sessionName?: string;
-    sessionTokens?: SessionTokenUsage;
 }
 export interface RenderContext {
     stdin: StdinData;

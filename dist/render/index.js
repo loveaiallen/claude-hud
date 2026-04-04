@@ -3,8 +3,9 @@ import { renderSessionLine } from './session-line.js';
 import { renderToolsLine } from './tools-line.js';
 import { renderAgentsLine } from './agents-line.js';
 import { renderTodosLine } from './todos-line.js';
-import { renderIdentityLine, renderProjectLine, renderEnvironmentLine, renderUsageLine, renderMemoryLine, renderSessionTokensLine, } from './lines/index.js';
+import { renderIdentityLine, renderProjectLine, renderEnvironmentLine, renderUsageLine, renderMemoryLine, } from './lines/index.js';
 import { dim, RESET } from './colors.js';
+import { UNKNOWN_TERMINAL_WIDTH } from '../utils/terminal.js';
 // eslint-disable-next-line no-control-regex
 const ANSI_ESCAPE_PATTERN = /^\x1b\[[0-9;]*m/;
 const ANSI_ESCAPE_GLOBAL = /\x1b\[[0-9;]*m/g;
@@ -29,7 +30,7 @@ function getTerminalWidth() {
     if (Number.isFinite(envColumns) && envColumns > 0) {
         return envColumns;
     }
-    return null;
+    return UNKNOWN_TERMINAL_WIDTH;
 }
 function splitAnsiTokens(str) {
     const tokens = [];
@@ -351,13 +352,6 @@ export function render(ctx) {
     if (lineLayout === 'expanded') {
         const renderedLines = renderExpanded(ctx);
         lines = renderedLines.map(({ line }) => line);
-        // Session token usage (cumulative)
-        if (ctx.config?.display?.showSessionTokens) {
-            const sessionTokensLine = renderSessionTokensLine(ctx);
-            if (sessionTokensLine) {
-                lines.push(sessionTokensLine);
-            }
-        }
         if (showSeparators) {
             const firstActivityIndex = renderedLines.findIndex(({ isActivity }) => isActivity);
             if (firstActivityIndex > 0) {
@@ -383,9 +377,7 @@ export function render(ctx) {
         lines.push(...activityLines);
     }
     const physicalLines = lines.flatMap(line => line.split('\n'));
-    const visibleLines = terminalWidth
-        ? physicalLines.flatMap(line => wrapLineToWidth(line, terminalWidth))
-        : physicalLines;
+    const visibleLines = physicalLines.flatMap(line => wrapLineToWidth(line, terminalWidth));
     for (const line of visibleLines) {
         const outputLine = `${RESET}${line}`;
         console.log(outputLine);

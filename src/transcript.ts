@@ -63,6 +63,28 @@ interface TranscriptCacheFile {
 
 let createReadStreamImpl: typeof fs.createReadStream = fs.createReadStream;
 
+function normalizeTokenCount(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.trunc(value));
+}
+
+function normalizeSessionTokens(tokens: unknown): SessionTokenUsage | undefined {
+  if (!tokens || typeof tokens !== 'object') {
+    return undefined;
+  }
+
+  const raw = tokens as Record<string, unknown>;
+  return {
+    inputTokens: normalizeTokenCount(raw.inputTokens),
+    outputTokens: normalizeTokenCount(raw.outputTokens),
+    cacheCreationTokens: normalizeTokenCount(raw.cacheCreationTokens),
+    cacheReadTokens: normalizeTokenCount(raw.cacheReadTokens),
+  };
+}
+
 function getTranscriptCachePath(transcriptPath: string, homeDir: string): string {
   const hash = createHash('sha256').update(path.resolve(transcriptPath)).digest('hex');
   return path.join(getHudPluginDir(homeDir), 'transcript-cache', `${hash}.json`);
@@ -117,7 +139,7 @@ function deserializeTranscriptData(data: SerializedTranscriptData): TranscriptDa
     todos: data.todos.map((todo) => ({ ...todo })),
     sessionStart: data.sessionStart ? new Date(data.sessionStart) : undefined,
     sessionName: data.sessionName,
-    sessionTokens: data.sessionTokens,
+    sessionTokens: normalizeSessionTokens(data.sessionTokens),
   };
 }
 
@@ -211,10 +233,10 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
         // Accumulate token usage from assistant messages
         if (entry.type === 'assistant' && entry.message?.usage) {
           const usage = entry.message.usage;
-          sessionTokens.inputTokens += usage.input_tokens ?? 0;
-          sessionTokens.outputTokens += usage.output_tokens ?? 0;
-          sessionTokens.cacheCreationTokens += usage.cache_creation_input_tokens ?? 0;
-          sessionTokens.cacheReadTokens += usage.cache_read_input_tokens ?? 0;
+          sessionTokens.inputTokens += normalizeTokenCount(usage.input_tokens);
+          sessionTokens.outputTokens += normalizeTokenCount(usage.output_tokens);
+          sessionTokens.cacheCreationTokens += normalizeTokenCount(usage.cache_creation_input_tokens);
+          sessionTokens.cacheReadTokens += normalizeTokenCount(usage.cache_read_input_tokens);
         }
         processEntry(entry, toolMap, agentMap, taskIdToIndex, latestTodos, result);
       } catch {

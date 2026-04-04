@@ -1,15 +1,16 @@
 import { isLimitReached } from '../types.js';
-import { getContextPercent, getBufferedPercent, getModelName, getProviderLabel, getTotalTokens } from '../stdin.js';
+import { getContextPercent, getBufferedPercent, getModelName, formatModelName, getProviderLabel, getTotalTokens } from '../stdin.js';
 import { getOutputSpeed } from '../speed-tracker.js';
-import { coloredBar, critical, git as gitColor, gitBranch as gitBranchColor, label, model as modelColor, project as projectColor, red, getContextColor, getQuotaColor, quotaBar, custom as customColor, RESET } from './colors.js';
+import { coloredBar, critical, git as gitColor, gitBranch as gitBranchColor, label, model as modelColor, project as projectColor, getContextColor, getQuotaColor, quotaBar, custom as customColor, RESET } from './colors.js';
 import { getAdaptiveBarWidth } from '../utils/terminal.js';
+import { t } from '../i18n/index.js';
 const DEBUG = process.env.DEBUG?.includes('claude-hud') || process.env.DEBUG === '*';
 /**
  * Renders the full session line (model + context bar + project + git + counts + usage + duration).
  * Used for compact layout mode.
  */
 export function renderSessionLine(ctx) {
-    const model = getModelName(ctx.stdin);
+    const model = formatModelName(getModelName(ctx.stdin), ctx.config?.display?.modelFormat, ctx.config?.display?.modelOverride);
     const rawPercent = getContextPercent(ctx.stdin);
     const bufferedPercent = getBufferedPercent(ctx.stdin);
     const autocompactMode = ctx.config?.display?.autocompactBuffer ?? 'enabled';
@@ -27,9 +28,7 @@ export function renderSessionLine(ctx) {
     const contextValueDisplay = `${getContextColor(percent, colors)}${contextValue}${RESET}`;
     // Model and context bar (FIRST)
     const providerLabel = getProviderLabel(ctx.stdin);
-    const showUsage = display?.showUsage !== false;
-    const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
-    const modelQualifier = providerLabel ?? (showUsage && hasApiKey ? red('API') : undefined);
+    const modelQualifier = providerLabel ?? undefined;
     const modelDisplay = modelQualifier ? `${model} | ${modelQualifier}` : model;
     if (display?.showModel !== false && display?.showContextBar !== false) {
         parts.push(`${modelColor(`[${modelDisplay}]`, colors)} ${bar} ${contextValueDisplay}`);
@@ -115,13 +114,13 @@ export function renderSessionLine(ctx) {
                 parts.push(label(`${ctx.claudeMdCount} CLAUDE.md`, colors));
             }
             if (ctx.rulesCount > 0) {
-                parts.push(label(`${ctx.rulesCount} rules`, colors));
+                parts.push(label(`${ctx.rulesCount} ${t('label.rules')}`, colors));
             }
             if (ctx.mcpCount > 0) {
                 parts.push(label(`${ctx.mcpCount} MCPs`, colors));
             }
             if (ctx.hooksCount > 0) {
-                parts.push(label(`${ctx.hooksCount} hooks`, colors));
+                parts.push(label(`${ctx.hooksCount} ${t('label.hooks')}`, colors));
             }
         }
     }
@@ -131,7 +130,7 @@ export function renderSessionLine(ctx) {
             const resetTime = ctx.usageData.fiveHour === 100
                 ? formatResetTime(ctx.usageData.fiveHourResetAt)
                 : formatResetTime(ctx.usageData.sevenDayResetAt);
-            parts.push(critical(`⚠ Limit reached${resetTime ? ` (resets ${resetTime})` : ''}`, colors));
+            parts.push(critical(`⚠ ${t('status.limitReached')}${resetTime ? ` (${t('format.resets')} ${resetTime})` : ''}`, colors));
         }
         else {
             const usageThreshold = display?.usageThreshold ?? 0;
@@ -180,19 +179,11 @@ export function renderSessionLine(ctx) {
             }
         }
     }
-    // Session token usage (cumulative)
-    if (display?.showSessionTokens && ctx.transcript.sessionTokens) {
-        const st = ctx.transcript.sessionTokens;
-        const total = st.inputTokens + st.outputTokens + st.cacheCreationTokens + st.cacheReadTokens;
-        if (total > 0) {
-            parts.push(label(`tok: ${formatTokens(total)} (in: ${formatTokens(st.inputTokens)}, out: ${formatTokens(st.outputTokens)})`, colors));
-        }
-    }
     // Session duration
     if (display?.showSpeed) {
         const speed = getOutputSpeed(ctx.stdin);
         if (speed !== null) {
-            parts.push(label(`out: ${speed.toFixed(1)} tok/s`, colors));
+            parts.push(label(`${t('format.out')}: ${speed.toFixed(1)} ${t('format.tokPerSec')}`, colors));
         }
     }
     if (display?.showDuration !== false && ctx.sessionDuration) {
@@ -213,7 +204,7 @@ export function renderSessionLine(ctx) {
         if (usage) {
             const input = formatTokens(usage.input_tokens ?? 0);
             const cache = formatTokens((usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0));
-            line += label(` (in: ${input}, cache: ${cache})`, colors);
+            line += label(` (${t('format.in')}: ${input}, ${t('format.cache')}: ${cache})`, colors);
         }
     }
     return line;
@@ -259,12 +250,12 @@ function formatUsageWindowPart({ label, percent, resetAt, colors, usageBarEnable
     const reset = formatResetTime(resetAt);
     if (usageBarEnabled) {
         const body = reset
-            ? `${quotaBar(percent ?? 0, barWidth, colors)} ${usageDisplay} (${reset} / ${label})`
+            ? `${quotaBar(percent ?? 0, barWidth, colors)} ${usageDisplay} (${t('format.resetsIn')} ${reset} / ${label})`
             : `${quotaBar(percent ?? 0, barWidth, colors)} ${usageDisplay}`;
         return forceLabel ? `${label}: ${body}` : body;
     }
     return reset
-        ? `${label}: ${usageDisplay} (${reset})`
+        ? `${label}: ${usageDisplay} (${t('format.resetsIn')} ${reset})`
         : `${label}: ${usageDisplay}`;
 }
 function formatResetTime(resetAt) {

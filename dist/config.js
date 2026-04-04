@@ -14,6 +14,7 @@ export const DEFAULT_ELEMENT_ORDER = [
 ];
 const KNOWN_ELEMENTS = new Set(DEFAULT_ELEMENT_ORDER);
 export const DEFAULT_CONFIG = {
+    language: 'en',
     lineLayout: 'expanded',
     showSeparators: false,
     pathLevels: 1,
@@ -41,11 +42,12 @@ export const DEFAULT_CONFIG = {
         showSessionName: false,
         showClaudeCodeVersion: false,
         showMemoryUsage: false,
-        showSessionTokens: false,
         autocompactBuffer: 'enabled',
         usageThreshold: 0,
         sevenDayThreshold: 80,
         environmentThreshold: 0,
+        modelFormat: 'full',
+        modelOverride: '',
         customLine: '',
     },
     colors: {
@@ -77,6 +79,12 @@ function validateAutocompactBuffer(value) {
 }
 function validateContextValue(value) {
     return value === 'percent' || value === 'tokens' || value === 'remaining' || value === 'both';
+}
+function validateLanguage(value) {
+    return value === 'en' || value === 'zh';
+}
+function validateModelFormat(value) {
+    return value === 'full' || value === 'compact' || value === 'short';
 }
 function validateColorName(value) {
     return value === 'dim'
@@ -152,6 +160,9 @@ function validateThreshold(value, max = 100) {
 }
 export function mergeConfig(userConfig) {
     const migrated = migrateConfig(userConfig);
+    const language = validateLanguage(migrated.language)
+        ? migrated.language
+        : DEFAULT_CONFIG.language;
     const lineLayout = validateLineLayout(migrated.lineLayout)
         ? migrated.lineLayout
         : DEFAULT_CONFIG.lineLayout;
@@ -225,15 +236,18 @@ export function mergeConfig(userConfig) {
         showMemoryUsage: typeof migrated.display?.showMemoryUsage === 'boolean'
             ? migrated.display.showMemoryUsage
             : DEFAULT_CONFIG.display.showMemoryUsage,
-        showSessionTokens: typeof migrated.display?.showSessionTokens === 'boolean'
-            ? migrated.display.showSessionTokens
-            : DEFAULT_CONFIG.display.showSessionTokens,
         autocompactBuffer: validateAutocompactBuffer(migrated.display?.autocompactBuffer)
             ? migrated.display.autocompactBuffer
             : DEFAULT_CONFIG.display.autocompactBuffer,
         usageThreshold: validateThreshold(migrated.display?.usageThreshold, 100),
         sevenDayThreshold: validateThreshold(migrated.display?.sevenDayThreshold, 100),
         environmentThreshold: validateThreshold(migrated.display?.environmentThreshold, 100),
+        modelFormat: validateModelFormat(migrated.display?.modelFormat)
+            ? migrated.display.modelFormat
+            : DEFAULT_CONFIG.display.modelFormat,
+        modelOverride: typeof migrated.display?.modelOverride === 'string'
+            ? migrated.display.modelOverride.slice(0, 80)
+            : DEFAULT_CONFIG.display.modelOverride,
         customLine: typeof migrated.display?.customLine === 'string'
             ? migrated.display.customLine.slice(0, 80)
             : DEFAULT_CONFIG.display.customLine,
@@ -273,20 +287,20 @@ export function mergeConfig(userConfig) {
             ? migrated.colors.custom
             : DEFAULT_CONFIG.colors.custom,
     };
-    return { lineLayout, showSeparators, pathLevels, elementOrder, gitStatus, display, colors };
+    return { language, lineLayout, showSeparators, pathLevels, elementOrder, gitStatus, display, colors };
 }
 export async function loadConfig() {
     const configPath = getConfigPath();
     try {
         if (!fs.existsSync(configPath)) {
-            return DEFAULT_CONFIG;
+            return mergeConfig({});
         }
         const content = fs.readFileSync(configPath, 'utf-8');
         const userConfig = JSON.parse(content);
         return mergeConfig(userConfig);
     }
     catch {
-        return DEFAULT_CONFIG;
+        return mergeConfig({});
     }
 }
 //# sourceMappingURL=config.js.map

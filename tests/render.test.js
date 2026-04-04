@@ -13,6 +13,7 @@ import { renderUsageLine } from '../dist/render/lines/usage.js';
 import { renderMemoryLine } from '../dist/render/lines/memory.js';
 import { renderIdentityLine } from '../dist/render/lines/identity.js';
 import { renderEnvironmentLine } from '../dist/render/lines/environment.js';
+import { renderSessionTokensLine } from '../dist/render/lines/session-tokens.js';
 import { getContextColor, getQuotaColor } from '../dist/render/colors.js';
 
 function stripAnsi(str) {
@@ -33,7 +34,7 @@ function baseContext() {
         },
       },
     },
-    transcript: { tools: [], agents: [], todos: [] },
+    transcript: { tools: [], agents: [], todos: [], sessionTokens: undefined },
     claudeMdCount: 0,
     rulesCount: 0,
     mcpCount: 0,
@@ -48,7 +49,7 @@ function baseContext() {
       pathLevels: 1,
       elementOrder: ['project', 'context', 'usage', 'memory', 'environment', 'tools', 'agents', 'todos'],
       gitStatus: { enabled: true, showDirty: true, showAheadBehind: false, showFileStats: false },
-      display: { showModel: true, showProject: true, showContextBar: true, contextValue: 'percent', showConfigCounts: true, showDuration: true, showSpeed: false, showTokenBreakdown: true, showUsage: true, usageBarEnabled: false, showTools: true, showAgents: true, showTodos: true, showSessionName: false, showClaudeCodeVersion: false, showMemoryUsage: false, autocompactBuffer: 'enabled', usageThreshold: 0, sevenDayThreshold: 80, environmentThreshold: 0, customLine: '' },
+      display: { showModel: true, showProject: true, showContextBar: true, contextValue: 'percent', showConfigCounts: true, showDuration: true, showSpeed: false, showTokenBreakdown: true, showUsage: true, usageBarEnabled: false, showTools: true, showAgents: true, showTodos: true, showSessionTokens: false, showSessionName: false, showClaudeCodeVersion: false, showMemoryUsage: false, autocompactBuffer: 'enabled', usageThreshold: 0, sevenDayThreshold: 80, environmentThreshold: 0, customLine: '' },
       colors: {
         context: 'green',
         usage: 'brightBlue',
@@ -1491,4 +1492,44 @@ test('render compact layout keeps activity lines even when elementOrder omits th
 
   assert.ok(output.includes('Read'), 'compact mode should keep tools visible');
   assert.ok(output.includes('todo-marker'), 'compact mode should keep todos visible');
+});
+
+test('renderSessionTokensLine returns null when session token display is disabled', () => {
+  const ctx = baseContext();
+  ctx.transcript.sessionTokens = {
+    inputTokens: 1000,
+    outputTokens: 200,
+    cacheCreationTokens: 3000,
+    cacheReadTokens: 400,
+  };
+
+  assert.equal(renderSessionTokensLine(ctx), null);
+});
+
+test('renderSessionTokensLine renders cumulative session token totals', () => {
+  const ctx = baseContext();
+  ctx.config.display.showSessionTokens = true;
+  ctx.transcript.sessionTokens = {
+    inputTokens: 7000,
+    outputTokens: 28000,
+    cacheCreationTokens: 12800000,
+    cacheReadTokens: 0,
+  };
+
+  const line = stripAnsi(renderSessionTokensLine(ctx) ?? '');
+  assert.equal(line, 'Tokens 12.8M (in: 7k, out: 28k, cache: 12.8M)');
+});
+
+test('renderSessionLine includes compact session token summary when enabled', () => {
+  const ctx = baseContext();
+  ctx.config.display.showSessionTokens = true;
+  ctx.transcript.sessionTokens = {
+    inputTokens: 1500,
+    outputTokens: 250,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+  };
+
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(line.includes('tok: 2k (in: 2k, out: 250)'), 'should include compact token summary');
 });
