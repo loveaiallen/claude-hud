@@ -43,6 +43,7 @@ function baseContext() {
     sessionDuration: '',
     gitStatus: null,
     usageData: null,
+    costUsd: null,
     memoryUsage: null,
     config: {
       lineLayout: 'compact',
@@ -591,53 +592,35 @@ test('renderProjectLine includes duration when showDuration is true', () => {
   assert.ok(line?.includes('12m 34s'), 'should include session duration');
 });
 
-test('renderSessionLine shows estimated cost when enabled and pricing is known', () => {
+test('renderSessionLine shows cost when enabled and costUsd is available', () => {
   const ctx = baseContext();
-  ctx.stdin.model.id = 'claude-opus-4-20250514';
   ctx.config.display.showCost = true;
-  ctx.transcript.sessionTokens = {
-    inputTokens: 100000,
-    cacheCreationTokens: 10000,
-    cacheReadTokens: 20000,
-    outputTokens: 50000,
-  };
+  ctx.costUsd = 5.47;
 
   const line = stripAnsi(renderSessionLine(ctx));
-  assert.ok(line.includes('Est. $5.47'));
+  assert.ok(line.includes('Cost ($USD) $5.47'));
 });
 
-test('renderProjectLine hides estimated cost for Bedrock pricing', () => {
+test('renderProjectLine hides cost when costUsd is null', () => {
   const ctx = baseContext();
   ctx.stdin.cwd = '/tmp/my-project';
   ctx.config.display.showCost = true;
-  ctx.stdin.model = { id: 'anthropic.claude-sonnet-4-20250514-v1:0' };
-  ctx.transcript.sessionTokens = {
-    inputTokens: 100000,
-    cacheCreationTokens: 10000,
-    cacheReadTokens: 20000,
-    outputTokens: 50000,
-  };
+  ctx.costUsd = null;
 
   const line = stripAnsi(renderProjectLine(ctx));
-  assert.ok(!line.includes('Est.'), 'Bedrock cost estimate should stay hidden');
+  assert.ok(!line.includes('Cost ($USD)'), 'cost should be hidden when costUsd is null');
 });
 
-test('renderProjectLine translates estimated cost label when Chinese is enabled', () => {
+test('renderProjectLine translates cost label when Chinese is enabled', () => {
   const ctx = baseContext();
   ctx.stdin.cwd = '/tmp/my-project';
-  ctx.stdin.model.id = 'claude-opus-4-20250514';
   ctx.config.display.showCost = true;
-  ctx.transcript.sessionTokens = {
-    inputTokens: 100000,
-    cacheCreationTokens: 10000,
-    cacheReadTokens: 20000,
-    outputTokens: 50000,
-  };
+  ctx.costUsd = 5.47;
 
   setLanguage('zh');
   try {
     const line = stripAnsi(renderProjectLine(ctx));
-    assert.ok(line.includes('估算 $5.47'));
+    assert.ok(line.includes('耗油量（美元）'));
   } finally {
     setLanguage('en');
   }

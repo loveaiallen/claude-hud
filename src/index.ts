@@ -79,6 +79,13 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
       usageData = deps.getUsageFromStdin(stdin);
     }
 
+    // Cost comes from Claude Code's native stdin field
+    const costUsdRaw = stdin.cost?.total_cost_usd;
+    const costUsd: number | null =
+      typeof costUsdRaw === "number" && Number.isFinite(costUsdRaw)
+        ? costUsdRaw
+        : null;
+
     const extraCmd = deps.parseExtraCmdArg();
     const extraLabel = extraCmd ? await deps.runExtraCmd(extraCmd) : null;
 
@@ -104,6 +111,7 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
       sessionDuration,
       gitStatus,
       usageData,
+      costUsd,
       memoryUsage,
       config,
       extraLabel,

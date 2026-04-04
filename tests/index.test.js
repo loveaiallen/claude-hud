@@ -323,6 +323,61 @@ test("main leaves usageData null when stdin rate_limits are absent", async () =>
   assert.equal(renderedContext?.usageData, null);
 });
 
+test("main includes costUsd from stdin cost.total_cost_usd", async () => {
+  let renderedContext;
+
+  await main({
+    readStdin: async () => ({
+      model: { display_name: "Opus" },
+      context_window: {
+        context_window_size: 100,
+        current_usage: { input_tokens: 10 },
+      },
+      cost: { total_cost_usd: 1.23 },
+    }),
+    parseTranscript: async () => ({ tools: [], agents: [], todos: [] }),
+    countConfigs: async () => ({
+      claudeMdCount: 0,
+      rulesCount: 0,
+      mcpCount: 0,
+      hooksCount: 0,
+    }),
+    getGitStatus: async () => null,
+    render: (ctx) => {
+      renderedContext = ctx;
+    },
+  });
+
+  assert.equal(renderedContext?.costUsd, 1.23);
+});
+
+test("main leaves costUsd null when cost field is absent", async () => {
+  let renderedContext;
+
+  await main({
+    readStdin: async () => ({
+      model: { display_name: "Opus" },
+      context_window: {
+        context_window_size: 100,
+        current_usage: { input_tokens: 10 },
+      },
+    }),
+    parseTranscript: async () => ({ tools: [], agents: [], todos: [] }),
+    countConfigs: async () => ({
+      claudeMdCount: 0,
+      rulesCount: 0,
+      mcpCount: 0,
+      hooksCount: 0,
+    }),
+    getGitStatus: async () => null,
+    render: (ctx) => {
+      renderedContext = ctx;
+    },
+  });
+
+  assert.equal(renderedContext?.costUsd, null);
+});
+
 test("main includes Claude Code version in render context only when enabled", async () => {
   let renderedContext;
   let lookupCalls = 0;
