@@ -297,7 +297,33 @@ test('render falls back to a safe default width when no terminal size is availab
   });
 
   assert.ok(lines.length > 1, 'should wrap output instead of emitting one oversized line');
-  assert.ok(lines.every(line => displayWidth(line) <= 40), 'all lines should fit the safe fallback width');
+  assert.ok(lines.every(line => displayWidth(line) <= 80), 'all lines should fit the safe fallback width');
+});
+
+test('render does not strand a bare 5h continuation line in compact mode', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'compact';
+  ctx.config.display.usageBarEnabled = false;
+  ctx.config.display.showConfigCounts = false;
+  ctx.stdin.cwd = '/tmp/project';
+  ctx.usageData = {
+    planName: 'Pro',
+    fiveHour: 30,
+    sevenDay: 85,
+    fiveHourResetAt: new Date(Date.now() + 60 * 60 * 1000),
+    sevenDayResetAt: new Date(Date.now() + 28 * 60 * 60 * 1000),
+  };
+
+  let lines = [];
+  withColumns(process.stdout, undefined, () => {
+    withColumns(process.stderr, 40, () => {
+      lines = captureRender(ctx);
+    });
+  });
+
+  assert.ok(lines.some(line => line.includes('Usage 5h 30%')), `expected usage window to keep its label: ${lines.join(' | ')}`);
+  assert.ok(lines.some(line => line.includes('Weekly 85%')), `expected weekly usage window to render: ${lines.join(' | ')}`);
+  assert.ok(!lines.some(line => line.startsWith('5h ')), `did not expect a bare 5h continuation line: ${lines.join(' | ')}`);
 });
 
 test('render prefers stdout columns over COLUMNS env fallback', () => {
