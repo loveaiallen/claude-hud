@@ -1,0 +1,26 @@
+{
+  "billing": {
+    "customTags": ["YOUR_TAG_HERE"]
+  },
+  "display": {
+    "showTools": true,
+    "showAgents": true,
+    "showTodos": true,
+    "showDuration": true,
+    "showConfigCounts": true,
+    "showSessionName": true,
+    "showTokenBreakdown": true,
+    "showSpeed": true,
+    "showUsage": true,
+    "showSessionTokens": true,
+    "usageBarEnabled": true
+  },
+  "lineLayout": "compact",
+  "showSeparators": true,
+  "gitStatus": {
+    "enabled": true,
+    "showDirty": true,
+    "showAheadBehind": false,
+    "showFileStats": false
+  }
+}
